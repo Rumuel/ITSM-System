@@ -35,6 +35,8 @@ type TicketDto = {
   createdAt: string
   requesterId: number
   requesterName?: string
+  assigneeId?: number
+  assigneeName?: string
   categoryId?: number
   categoryName?: string
 }
@@ -718,6 +720,10 @@ function TicketManagement({ token, user }: TicketManagementProps) {
               <div>
                 <dt>Criado por</dt>
                 <dd>{ticket.requesterName || ticket.requesterId}</dd>
+              </div>
+              <div>
+                <dt>Atribuido</dt>
+                <dd>{ticket.assigneeName || 'Por atribuir'}</dd>
               </div>
             </dl>
 
