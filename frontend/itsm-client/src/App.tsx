@@ -1,121 +1,324 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
+import { useEffect, useMemo, useState } from 'react'
+import type { FormEvent } from 'react'
 import './App.css'
 
+type AuthMode = 'login' | 'register'
+
+type UserDto = {
+  id: number
+  userName: string
+  email: string
+  fullName?: string
+  isActive: boolean
+}
+
+type AuthResponse = {
+  success: boolean
+  message: string
+  token?: string
+  user?: UserDto
+}
+
+type LoginForm = {
+  userName: string
+  password: string
+}
+
+type RegisterForm = LoginForm & {
+  email: string
+  fullName: string
+}
+
+const initialLoginForm: LoginForm = {
+  userName: '',
+  password: '',
+}
+
+const initialRegisterForm: RegisterForm = {
+  userName: '',
+  email: '',
+  fullName: '',
+  password: '',
+}
+
 function App() {
-  const [count, setCount] = useState(0)
+  const [mode, setMode] = useState<AuthMode>('login')
+  const [loginForm, setLoginForm] = useState<LoginForm>(initialLoginForm)
+  const [registerForm, setRegisterForm] = useState<RegisterForm>(initialRegisterForm)
+  const [token, setToken] = useState(() => localStorage.getItem('itsm.token') ?? '')
+  const [user, setUser] = useState<UserDto | null>(() => {
+    const storedUser = localStorage.getItem('itsm.user')
+    return storedUser ? (JSON.parse(storedUser) as UserDto) : null
+  })
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+
+  const activeForm = mode === 'login' ? loginForm : registerForm
+  const canSubmit = useMemo(() => {
+    if (mode === 'login') {
+      return loginForm.userName.trim().length > 0 && loginForm.password.length > 0
+    }
+
+    return (
+      registerForm.userName.trim().length >= 3 &&
+      registerForm.email.trim().length > 0 &&
+      registerForm.fullName.trim().length >= 2 &&
+      registerForm.password.length >= 6
+    )
+  }, [loginForm, mode, registerForm])
+
+  useEffect(() => {
+    if (token) {
+      localStorage.setItem('itsm.token', token)
+    } else {
+      localStorage.removeItem('itsm.token')
+    }
+  }, [token])
+
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('itsm.user', JSON.stringify(user))
+    } else {
+      localStorage.removeItem('itsm.user')
+    }
+  }, [user])
+
+  async function submitAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setMessage('')
+    setIsLoading(true)
+
+    const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register'
+    const body = mode === 'login' ? loginForm : registerForm
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      })
+
+      const data = (await response.json()) as AuthResponse
+
+      if (!response.ok || !data.success) {
+        setError(data.message || 'Pedido recusado pela API.')
+        return
+      }
+
+      setUser(data.user ?? null)
+      setMessage(data.message)
+
+      if (data.token) {
+        setToken(data.token)
+      }
+
+      if (mode === 'register') {
+        setRegisterForm(initialRegisterForm)
+        setLoginForm({ userName: registerForm.userName, password: '' })
+        setMode('login')
+      }
+    } catch {
+      setError('Nao foi possivel contactar a API. Confirma que o backend esta a correr.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function loadCurrentUser() {
+    if (!token) {
+      setError('Faz login para testar o endpoint protegido.')
+      return
+    }
+
+    setError('')
+    setMessage('')
+    setIsLoading(true)
+
+    try {
+      const response = await fetch('/api/auth/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        setError('Token recusado pela API.')
+        return
+      }
+
+      const currentUser = (await response.json()) as UserDto
+      setUser(currentUser)
+      setMessage('Ligacao validada com /api/auth/me.')
+    } catch {
+      setError('Nao foi possivel contactar a API.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  function logout() {
+    setToken('')
+    setUser(null)
+    setMessage('Sessao terminada no browser.')
+    setError('')
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <main className="app-shell">
+      <section className="auth-panel" aria-labelledby="auth-title">
+        <div className="panel-heading">
+          <p className="eyebrow">ITSM System</p>
+          <h1 id="auth-title">Autenticacao</h1>
+          <p className="lead">Cria uma conta ou inicia sessao para validar a ligacao ao ASP.NET Core Identity.</p>
         </div>
+
+        <div className="mode-switch" role="tablist" aria-label="Modo de autenticacao">
+          <button
+            type="button"
+            className={mode === 'login' ? 'active' : ''}
+            onClick={() => setMode('login')}
+          >
+            Login
+          </button>
+          <button
+            type="button"
+            className={mode === 'register' ? 'active' : ''}
+            onClick={() => setMode('register')}
+          >
+            Cadastro
+          </button>
+        </div>
+
+        <form className="auth-form" onSubmit={submitAuth}>
+          {mode === 'register' && (
+            <>
+              <label>
+                Nome completo
+                <input
+                  autoComplete="name"
+                  minLength={2}
+                  name="fullName"
+                  required
+                  type="text"
+                  value={registerForm.fullName}
+                  onChange={(event) =>
+                    setRegisterForm((form) => ({ ...form, fullName: event.target.value }))
+                  }
+                />
+              </label>
+
+              <label>
+                Email
+                <input
+                  autoComplete="email"
+                  name="email"
+                  required
+                  type="email"
+                  value={registerForm.email}
+                  onChange={(event) =>
+                    setRegisterForm((form) => ({ ...form, email: event.target.value }))
+                  }
+                />
+              </label>
+            </>
+          )}
+
+          <label>
+            Utilizador
+            <input
+              autoComplete="username"
+              minLength={mode === 'register' ? 3 : undefined}
+              name="userName"
+              required
+              type="text"
+              value={activeForm.userName}
+              onChange={(event) => {
+                if (mode === 'login') {
+                  setLoginForm((form) => ({ ...form, userName: event.target.value }))
+                  return
+                }
+
+                setRegisterForm((form) => ({ ...form, userName: event.target.value }))
+              }}
+            />
+          </label>
+
+          <label>
+            Palavra-passe
+            <input
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              minLength={6}
+              name="password"
+              required
+              type="password"
+              value={activeForm.password}
+              onChange={(event) => {
+                if (mode === 'login') {
+                  setLoginForm((form) => ({ ...form, password: event.target.value }))
+                  return
+                }
+
+                setRegisterForm((form) => ({ ...form, password: event.target.value }))
+              }}
+            />
+          </label>
+
+          <button className="primary-action" disabled={!canSubmit || isLoading} type="submit">
+            {isLoading ? 'A processar...' : mode === 'login' ? 'Entrar' : 'Criar conta'}
+          </button>
+        </form>
+
+        {(message || error) && (
+          <p className={error ? 'feedback error' : 'feedback success'}>{error || message}</p>
+        )}
+      </section>
+
+      <aside className="session-panel" aria-label="Estado da sessao">
         <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
+          <p className="eyebrow">Estado</p>
+          <h2>{user ? user.fullName || user.userName : 'Sem sessao ativa'}</h2>
+          <p className="session-copy">
+            {user
+              ? 'Os dados abaixo vieram da API e podem ser confirmados nas tabelas AspNetUsers.'
+              : 'Depois do cadastro, usa o login para receber um token JWT.'}
           </p>
         </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
 
-      <div className="ticks"></div>
+        {user && (
+          <dl className="user-details">
+            <div>
+              <dt>ID</dt>
+              <dd>{user.id}</dd>
+            </div>
+            <div>
+              <dt>Username</dt>
+              <dd>{user.userName}</dd>
+            </div>
+            <div>
+              <dt>Email</dt>
+              <dd>{user.email}</dd>
+            </div>
+            <div>
+              <dt>Ativo</dt>
+              <dd>{user.isActive ? 'Sim' : 'Nao'}</dd>
+            </div>
+          </dl>
+        )}
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+        <div className="session-actions">
+          <button type="button" onClick={loadCurrentUser} disabled={!token || isLoading}>
+            Testar token
+          </button>
+          <button type="button" onClick={logout} disabled={!token && !user}>
+            Sair
+          </button>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      </aside>
+    </main>
   )
 }
 
