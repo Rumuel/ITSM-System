@@ -1,5 +1,6 @@
 using Application.DTOs;
 using Application.Interfaces;
+using Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -36,6 +37,7 @@ namespace api.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = AppRoles.Administrator)]
         public async Task<ActionResult<TicketCategoryDto>> Create([FromBody] CreateTicketCategoryRequest request)
         {
             if (!ModelState.IsValid)
@@ -46,6 +48,7 @@ namespace api.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = AppRoles.Administrator)]
         public async Task<ActionResult<TicketCategoryDto>> Update(int id, [FromBody] CreateTicketCategoryRequest request)
         {
             if (!ModelState.IsValid)
@@ -59,6 +62,7 @@ namespace api.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = AppRoles.Administrator)]
         public async Task<IActionResult> Delete(int id)
         {
             var result = await _categoryService.DeleteAsync(id);

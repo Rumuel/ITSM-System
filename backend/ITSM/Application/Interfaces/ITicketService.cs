@@ -8,8 +8,10 @@ namespace Application.Interfaces
         Task<IEnumerable<TicketDto>> GetAllAsync();
         Task<IEnumerable<TicketDto>> GetByRequesterAsync(int requesterId);
         Task<IEnumerable<TicketDto>> GetAssignedToAsync(int assigneeId);
+        Task<IEnumerable<TicketLookupDto>> GetPrioritiesAsync();
+        Task<IEnumerable<TicketLookupDto>> GetStatusesAsync();
         Task<TicketDto> CreateAsync(CreateTicketRequest request, int requesterId);
-        Task<TicketDto?> UpdateAsync(int id, UpdateTicketRequest request, int userId);
-        Task<bool> DeleteAsync(int id, int userId);
+        Task<TicketDto?> UpdateAsync(int id, UpdateTicketRequest request, int userId, bool canManageAnyTicket);
+        Task<bool> DeleteAsync(int id, int userId, bool canManageAnyTicket);
     }
 }

@@ -24,6 +24,40 @@ type ApiMessage = {
   message?: string
 }
 
+type TicketDto = {
+  id: number
+  title: string
+  description?: string
+  priority: number
+  priorityName?: string
+  status: number
+  statusName?: string
+  createdAt: string
+  requesterId: number
+  requesterName?: string
+  categoryId?: number
+  categoryName?: string
+}
+
+type TicketLookupDto = {
+  id: number
+  name: string
+  weight?: number
+}
+
+type TicketCategoryDto = {
+  id: number
+  name: string
+  description?: string
+}
+
+type CreateTicketForm = {
+  title: string
+  description: string
+  priority: number
+  categoryId: string
+}
+
 type LoginForm = {
   userName: string
   password: string
@@ -44,6 +78,13 @@ const initialRegisterForm: RegisterForm = {
   email: '',
   fullName: '',
   password: '',
+}
+
+const initialTicketForm: CreateTicketForm = {
+  title: '',
+  description: '',
+  priority: 2,
+  categoryId: '',
 }
 
 function App() {
@@ -425,10 +466,290 @@ function HomePage({ isLoading, message, onLogout, onRefreshUser, token, user }: 
         </article>
       </section>
 
+      <TicketManagement token={token} user={user} />
+
       {isAdministrator && <AdminRoleManagement currentUserId={user.id} token={token} />}
 
       {message && <p className="home-feedback">{message}</p>}
     </main>
+  )
+}
+
+type TicketManagementProps = {
+  token: string
+  user: UserDto
+}
+
+function TicketManagement({ token, user }: TicketManagementProps) {
+  const [tickets, setTickets] = useState<TicketDto[]>([])
+  const [categories, setCategories] = useState<TicketCategoryDto[]>([])
+  const [priorities, setPriorities] = useState<TicketLookupDto[]>([])
+  const [statuses, setStatuses] = useState<TicketLookupDto[]>([])
+  const [form, setForm] = useState<CreateTicketForm>(initialTicketForm)
+  const [isLoading, setIsLoading] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+
+  const canManageTickets = user.roles.includes('Administrador') || user.roles.includes('Tecnico')
+
+  useEffect(() => {
+    void loadTicketsArea()
+  }, [])
+
+  async function loadTicketsArea() {
+    setIsLoading(true)
+    setError('')
+
+    try {
+      const [ticketsResponse, categoriesResponse, prioritiesResponse, statusesResponse] = await Promise.all([
+        fetch('/api/tickets', {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch('/api/categories'),
+        fetch('/api/tickets/priorities'),
+        fetch('/api/tickets/statuses'),
+      ])
+
+      if (!ticketsResponse.ok || !categoriesResponse.ok || !prioritiesResponse.ok || !statusesResponse.ok) {
+        setError('Nao foi possivel carregar os dados de tickets.')
+        return
+      }
+
+      setTickets((await ticketsResponse.json()) as TicketDto[])
+      setCategories((await categoriesResponse.json()) as TicketCategoryDto[])
+      setPriorities((await prioritiesResponse.json()) as TicketLookupDto[])
+      setStatuses((await statusesResponse.json()) as TicketLookupDto[])
+    } catch {
+      setError('Nao foi possivel contactar a API de tickets.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function createTicket(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsLoading(true)
+    setError('')
+    setMessage('')
+
+    try {
+      const response = await fetch('/api/tickets', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: form.title,
+          description: form.description || null,
+          priority: form.priority,
+          categoryId: form.categoryId ? Number(form.categoryId) : null,
+        }),
+      })
+
+      if (!response.ok) {
+        setError('Nao foi possivel criar o ticket.')
+        return
+      }
+
+      const createdTicket = (await response.json()) as TicketDto
+      setTickets((current) => [createdTicket, ...current])
+      setForm(initialTicketForm)
+      setMessage(`Ticket #${createdTicket.id} criado.`)
+    } catch {
+      setError('Nao foi possivel contactar a API de tickets.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function updateTicketStatus(ticket: TicketDto, statusId: number) {
+    setIsLoading(true)
+    setError('')
+    setMessage('')
+
+    try {
+      const response = await fetch(`/api/tickets/${ticket.id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: ticket.title,
+          description: ticket.description,
+          priority: ticket.priority,
+          status: statusId,
+          categoryId: ticket.categoryId,
+        }),
+      })
+
+      if (!response.ok) {
+        setError('Nao foi possivel atualizar o estado do ticket.')
+        return
+      }
+
+      const updatedTicket = (await response.json()) as TicketDto
+      setTickets((current) =>
+        current.map((item) => (item.id === updatedTicket.id ? updatedTicket : item)),
+      )
+      setMessage(`Ticket #${updatedTicket.id} atualizado.`)
+    } catch {
+      setError('Nao foi possivel contactar a API de tickets.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function deleteTicket(ticketId: number) {
+    setIsLoading(true)
+    setError('')
+    setMessage('')
+
+    try {
+      const response = await fetch(`/api/tickets/${ticketId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      if (!response.ok) {
+        setError('Nao foi possivel remover o ticket.')
+        return
+      }
+
+      setTickets((current) => current.filter((ticket) => ticket.id !== ticketId))
+      setMessage(`Ticket #${ticketId} removido.`)
+    } catch {
+      setError('Nao foi possivel contactar a API de tickets.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <section className="tickets-section" aria-labelledby="tickets-title">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Tickets</p>
+          <h2 id="tickets-title">Gestao de tickets</h2>
+        </div>
+        <button type="button" onClick={loadTicketsArea} disabled={isLoading}>
+          Atualizar
+        </button>
+      </div>
+
+      <form className="ticket-form" onSubmit={createTicket}>
+        <label>
+          Titulo
+          <input
+            minLength={3}
+            required
+            type="text"
+            value={form.title}
+            onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+          />
+        </label>
+
+        <label>
+          Categoria
+          <select
+            value={form.categoryId}
+            onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value }))}
+          >
+            <option value="">Sem categoria</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Prioridade
+          <select
+            value={form.priority}
+            onChange={(event) => setForm((current) => ({ ...current, priority: Number(event.target.value) }))}
+          >
+            {priorities.map((priority) => (
+              <option key={priority.id} value={priority.id}>
+                {priority.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="ticket-description">
+          Descricao
+          <textarea
+            maxLength={2000}
+            value={form.description}
+            onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+          />
+        </label>
+
+        <button type="submit" disabled={isLoading || form.title.trim().length < 3}>
+          Criar ticket
+        </button>
+      </form>
+
+      <div className="tickets-list">
+        {tickets.map((ticket) => (
+          <article className="ticket-card" key={ticket.id}>
+            <div>
+              <span className="ticket-id">#{ticket.id}</span>
+              <h3>{ticket.title}</h3>
+              <p>{ticket.description || 'Sem descricao.'}</p>
+            </div>
+
+            <dl>
+              <div>
+                <dt>Estado</dt>
+                <dd>{ticket.statusName || ticket.status}</dd>
+              </div>
+              <div>
+                <dt>Prioridade</dt>
+                <dd>{ticket.priorityName || ticket.priority}</dd>
+              </div>
+              <div>
+                <dt>Categoria</dt>
+                <dd>{ticket.categoryName || 'Sem categoria'}</dd>
+              </div>
+              <div>
+                <dt>Criado por</dt>
+                <dd>{ticket.requesterName || ticket.requesterId}</dd>
+              </div>
+            </dl>
+
+            <div className="ticket-actions">
+              <select
+                aria-label={`Estado do ticket ${ticket.id}`}
+                disabled={isLoading || (!canManageTickets && ticket.requesterId !== user.id)}
+                value={ticket.status}
+                onChange={(event) => updateTicketStatus(ticket, Number(event.target.value))}
+              >
+                {statuses.map((status) => (
+                  <option key={status.id} value={status.id}>
+                    {status.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={isLoading || (!canManageTickets && ticket.requesterId !== user.id)}
+                onClick={() => deleteTicket(ticket.id)}
+              >
+                Remover
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      {tickets.length === 0 && <p className="empty-state">Ainda nao existem tickets para apresentar.</p>}
+      {message && <p className="home-feedback">{message}</p>}
+      {error && <p className="feedback error">{error}</p>}
+    </section>
   )
 }
 

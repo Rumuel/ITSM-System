@@ -9,10 +9,12 @@ namespace Application.Services
     public class TicketService : ITicketService
     {
         private readonly ItsmDbContext _context;
+        private readonly ITicketAssignmentService _assignmentService;
 
-        public TicketService(ItsmDbContext context)
+        public TicketService(ItsmDbContext context, ITicketAssignmentService assignmentService)
         {
             _context = context;
+            _assignmentService = assignmentService;
         }
 
         public async Task<TicketDto?> GetByIdAsync(int id)
@@ -22,6 +24,8 @@ namespace Application.Services
                 .Include(t => t.AssignedTechnician)
                     .ThenInclude(t => t!.User)
                 .Include(t => t.Category)
+                .Include(t => t.Priority)
+                .Include(t => t.Status)
                 .FirstOrDefaultAsync(t => t.Id == id);
 
             return ticket == null ? null : MapToDto(ticket);
@@ -34,6 +38,8 @@ namespace Application.Services
                 .Include(t => t.AssignedTechnician)
                     .ThenInclude(t => t!.User)
                 .Include(t => t.Category)
+                .Include(t => t.Priority)
+                .Include(t => t.Status)
                 .OrderByDescending(t => t.CreatedAt)
                 .ToListAsync();
 
@@ -47,6 +53,8 @@ namespace Application.Services
                 .Include(t => t.AssignedTechnician)
                     .ThenInclude(t => t!.User)
                 .Include(t => t.Category)
+                .Include(t => t.Priority)
+                .Include(t => t.Status)
                 .Where(t => t.CreatedByUserId == requesterId)
                 .OrderByDescending(t => t.CreatedAt)
                 .ToListAsync();
@@ -61,11 +69,38 @@ namespace Application.Services
                 .Include(t => t.AssignedTechnician)
                     .ThenInclude(t => t!.User)
                 .Include(t => t.Category)
+                .Include(t => t.Priority)
+                .Include(t => t.Status)
                 .Where(t => t.AssignedTechnicianId == assigneeId)
                 .OrderByDescending(t => t.CreatedAt)
                 .ToListAsync();
 
             return tickets.Select(MapToDto);
+        }
+
+        public async Task<IEnumerable<TicketLookupDto>> GetPrioritiesAsync()
+        {
+            return await _context.Priorities
+                .OrderBy(p => p.Weight)
+                .Select(p => new TicketLookupDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Weight = p.Weight
+                })
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<TicketLookupDto>> GetStatusesAsync()
+        {
+            return await _context.TicketStatuses
+                .OrderBy(s => s.Id)
+                .Select(s => new TicketLookupDto
+                {
+                    Id = s.Id,
+                    Name = s.Name
+                })
+                .ToListAsync();
         }
 
         public async Task<TicketDto> CreateAsync(CreateTicketRequest request, int requesterId)
@@ -77,27 +112,29 @@ namespace Application.Services
                 PriorityId = request.Priority,
                 StatusId = 1,
                 CategoryId = request.CategoryId,
-                CreatedByUserId = requesterId
+                CreatedByUserId = requesterId,
+                CreatedAt = DateTime.UtcNow
             };
 
             _context.Tickets.Add(ticket);
             await _context.SaveChangesAsync();
 
+            await _assignmentService.AssignBestTechnicianAsync(ticket);
+
             var createdTicket = await GetByIdAsync(ticket.Id);
             return createdTicket!;
         }
 
-        public async Task<TicketDto?> UpdateAsync(int id, UpdateTicketRequest request, int userId)
+        public async Task<TicketDto?> UpdateAsync(int id, UpdateTicketRequest request, int userId, bool canManageAnyTicket)
         {
             var ticket = await _context.Tickets.FirstOrDefaultAsync(t => t.Id == id);
             if (ticket == null)
                 return null;
 
-            // Only requester or assignee can update
             var isAssignedTechnician = await _context.Technicians
                 .AnyAsync(t => t.Id == ticket.AssignedTechnicianId && t.UserId == userId);
 
-            if (ticket.CreatedByUserId != userId && !isAssignedTechnician)
+            if (!canManageAnyTicket && ticket.CreatedByUserId != userId && !isAssignedTechnician)
                 return null;
 
             if (!string.IsNullOrEmpty(request.Title))
@@ -112,10 +149,10 @@ namespace Application.Services
             if (request.Status.HasValue)
                 ticket.StatusId = request.Status.Value;
 
-            if (request.AssigneeId.HasValue || request.AssigneeId == null)
+            if (request.AssigneeId.HasValue)
                 ticket.AssignedTechnicianId = request.AssigneeId;
 
-            if (request.CategoryId.HasValue || request.CategoryId == null)
+            if (request.CategoryId.HasValue)
                 ticket.CategoryId = request.CategoryId;
 
             ticket.UpdatedAt = DateTime.UtcNow;
@@ -126,14 +163,13 @@ namespace Application.Services
             return await GetByIdAsync(id);
         }
 
-        public async Task<bool> DeleteAsync(int id, int userId)
+        public async Task<bool> DeleteAsync(int id, int userId, bool canManageAnyTicket)
         {
             var ticket = await _context.Tickets.FirstOrDefaultAsync(t => t.Id == id);
             if (ticket == null)
                 return false;
 
-            // Only requester can delete
-            if (ticket.CreatedByUserId != userId)
+            if (!canManageAnyTicket && ticket.CreatedByUserId != userId)
                 return false;
 
             _context.Tickets.Remove(ticket);
@@ -149,7 +185,9 @@ namespace Application.Services
                 Title = ticket.Title,
                 Description = ticket.Description,
                 Priority = ticket.PriorityId,
+                PriorityName = ticket.Priority?.Name,
                 Status = ticket.StatusId,
+                StatusName = ticket.Status?.Name,
                 CreatedAt = ticket.CreatedAt,
                 UpdatedAt = ticket.UpdatedAt,
                 RequesterId = ticket.CreatedByUserId,

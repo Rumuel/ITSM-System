@@ -234,7 +234,7 @@ namespace Infrastructure.Data
                 entity.HasOne(h => h.ChangedByUser)
                       .WithMany(u => u.TicketHistories)
                       .HasForeignKey(h => h.ChangedByUserId)
-                      .OnDelete(DeleteBehavior.Restrict);
+                      .OnDelete(DeleteBehavior.SetNull);
             });
 
             builder.Entity<AuditLog>(entity =>

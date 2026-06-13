@@ -16,6 +16,8 @@ body {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   letter-spacing: 0;
 }

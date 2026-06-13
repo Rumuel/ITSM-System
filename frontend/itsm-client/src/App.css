@@ -121,7 +121,9 @@ label {
   font-weight: 700;
 }
 
-input {
+input,
+select,
+textarea {
   width: 100%;
   box-sizing: border-box;
   min-height: 46px;
@@ -133,7 +135,14 @@ input {
   font: inherit;
 }
 
-input:focus {
+textarea {
+  min-height: 104px;
+  resize: vertical;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
   outline: 3px solid rgba(31, 122, 109, 0.18);
   border-color: #1f7a6d;
 }
@@ -329,6 +338,118 @@ button:disabled {
   font-weight: 700;
 }
 
+.tickets-section {
+  margin-top: 22px;
+  padding: 24px;
+  background: #ffffff;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+}
+
+.ticket-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.1fr) minmax(180px, 0.7fr) minmax(150px, 0.55fr);
+  gap: 14px;
+  align-items: end;
+  margin-bottom: 20px;
+}
+
+.ticket-description {
+  grid-column: 1 / -1;
+}
+
+.ticket-form button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 6px;
+  color: #ffffff;
+  background: #1f7a6d;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tickets-list {
+  display: grid;
+  gap: 14px;
+}
+
+.ticket-card {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, 0.9fr) minmax(190px, 0.5fr);
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.ticket-id {
+  display: inline-flex;
+  margin-bottom: 8px;
+  color: #1f7a6d;
+  font-weight: 800;
+}
+
+.ticket-card h3 {
+  margin: 0 0 8px;
+  color: #111827;
+}
+
+.ticket-card p {
+  margin: 0;
+  color: #5b6675;
+}
+
+.ticket-card dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.ticket-card dl div {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.ticket-card dt {
+  color: #5b6675;
+  font-weight: 800;
+}
+
+.ticket-card dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ticket-actions {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.ticket-actions button {
+  min-height: 42px;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  color: #7f1d1d;
+  background: #fee2e2;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.empty-state {
+  margin: 0;
+  padding: 18px;
+  color: #5b6675;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+}
+
 .admin-section {
   margin-top: 22px;
   padding: 24px;
@@ -458,6 +579,11 @@ button:disabled {
   }
 
   .home-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ticket-form,
+  .ticket-card {
     grid-template-columns: 1fr;
   }
 
