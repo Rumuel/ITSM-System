@@ -49,7 +49,15 @@ function App() {
   const [token, setToken] = useState(() => localStorage.getItem('itsm.token') ?? '')
   const [user, setUser] = useState<UserDto | null>(() => {
     const storedUser = localStorage.getItem('itsm.user')
-    return storedUser ? (JSON.parse(storedUser) as UserDto) : null
+    if (!storedUser) {
+      return null
+    }
+
+    const parsedUser = JSON.parse(storedUser) as UserDto
+    return {
+      ...parsedUser,
+      roles: parsedUser.roles ?? [],
+    }
   })
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -115,6 +123,7 @@ function App() {
 
       if (data.token) {
         setToken(data.token)
+        setLoginForm(initialLoginForm)
       }
 
       if (mode === 'register') {
@@ -164,8 +173,21 @@ function App() {
   function logout() {
     setToken('')
     setUser(null)
+    setMode('login')
     setMessage('Sessao terminada no browser.')
     setError('')
+  }
+
+  if (user && token) {
+    return (
+      <HomePage
+        isLoading={isLoading}
+        message={message}
+        onLogout={logout}
+        onRefreshUser={loadCurrentUser}
+        user={user}
+      />
+    )
   }
 
   return (
@@ -323,6 +345,79 @@ function App() {
           </button>
         </div>
       </aside>
+    </main>
+  )
+}
+
+type HomePageProps = {
+  isLoading: boolean
+  message: string
+  onLogout: () => void
+  onRefreshUser: () => void
+  user: UserDto
+}
+
+function HomePage({ isLoading, message, onLogout, onRefreshUser, user }: HomePageProps) {
+  return (
+    <main className="home-shell">
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">ITSM System</p>
+          <h1>Painel inicial</h1>
+        </div>
+
+        <div className="topbar-actions">
+          <button type="button" onClick={onRefreshUser} disabled={isLoading}>
+            Atualizar sessao
+          </button>
+          <button type="button" onClick={onLogout}>
+            Sair
+          </button>
+        </div>
+      </header>
+
+      <section className="welcome-band">
+        <div>
+          <p className="eyebrow">Bem-vindo</p>
+          <h2>{user.fullName || user.userName}</h2>
+          <p>Conta ativa com perfil {user.roles.length > 0 ? user.roles.join(', ') : 'sem role'}.</p>
+        </div>
+
+        <dl className="account-summary">
+          <div>
+            <dt>ID</dt>
+            <dd>{user.id}</dd>
+          </div>
+          <div>
+            <dt>Email</dt>
+            <dd>{user.email}</dd>
+          </div>
+          <div>
+            <dt>Estado</dt>
+            <dd>{user.isActive ? 'Ativo' : 'Inativo'}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="home-grid" aria-label="Resumo operacional">
+        <article>
+          <span className="metric">0</span>
+          <h3>Tickets abertos</h3>
+          <p>A fase de tickets entra no proximo passo do projeto.</p>
+        </article>
+        <article>
+          <span className="metric">0</span>
+          <h3>Tickets atribuidos</h3>
+          <p>Quando houver tecnicos, esta area mostra o trabalho em curso.</p>
+        </article>
+        <article>
+          <span className="metric">{user.roles.length}</span>
+          <h3>Roles</h3>
+          <p>{user.roles.length > 0 ? user.roles.join(', ') : 'Sem role atribuida'}</p>
+        </article>
+      </section>
+
+      {message && <p className="home-feedback">{message}</p>}
     </main>
   )
 }

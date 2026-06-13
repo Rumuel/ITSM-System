@@ -203,6 +203,132 @@ button:disabled {
   background: #f8fafc;
 }
 
+.home-shell {
+  width: min(1180px, calc(100% - 32px));
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 28px 0 40px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  padding: 20px 0 28px;
+}
+
+.topbar-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.topbar-actions button {
+  min-height: 42px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0 14px;
+  color: #102033;
+  background: #ffffff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.welcome-band {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.55fr);
+  gap: 24px;
+  align-items: center;
+  padding: 30px;
+  background: #ffffff;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  box-shadow: 0 18px 60px rgba(15, 23, 42, 0.08);
+}
+
+.welcome-band h2 {
+  margin-bottom: 10px;
+  font-size: 32px;
+}
+
+.welcome-band p {
+  margin: 0;
+  color: #5b6675;
+}
+
+.account-summary {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.account-summary div {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px;
+  background: #eef3f7;
+  border-radius: 6px;
+}
+
+.account-summary dt {
+  color: #5b6675;
+  font-weight: 700;
+}
+
+.account-summary dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 22px;
+}
+
+.home-grid article {
+  min-height: 160px;
+  padding: 22px;
+  background: #ffffff;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+}
+
+.metric {
+  display: block;
+  margin-bottom: 18px;
+  color: #1f7a6d;
+  font-size: 38px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.home-grid h3 {
+  margin: 0 0 10px;
+  color: #111827;
+  font-size: 18px;
+}
+
+.home-grid p {
+  margin: 0;
+  color: #5b6675;
+}
+
+.home-feedback {
+  margin: 18px 0 0;
+  padding: 12px 14px;
+  color: #14532d;
+  background: #dcfce7;
+  border-radius: 6px;
+  font-weight: 700;
+}
+
 @media (max-width: 860px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -217,5 +343,28 @@ button:disabled {
 
   .session-panel {
     min-height: auto;
+  }
+
+  .topbar,
+  .welcome-band {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .topbar-actions button {
+    flex: 1;
+  }
+
+  .home-grid {
+    grid-template-columns: 1fr;
   }
 }
