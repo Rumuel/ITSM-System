@@ -20,6 +20,10 @@ type AuthResponse = {
   user?: UserDto
 }
 
+type ApiMessage = {
+  message?: string
+}
+
 type LoginForm = {
   userName: string
   password: string
@@ -185,6 +189,7 @@ function App() {
         message={message}
         onLogout={logout}
         onRefreshUser={loadCurrentUser}
+        token={token}
         user={user}
       />
     )
@@ -354,10 +359,13 @@ type HomePageProps = {
   message: string
   onLogout: () => void
   onRefreshUser: () => void
+  token: string
   user: UserDto
 }
 
-function HomePage({ isLoading, message, onLogout, onRefreshUser, user }: HomePageProps) {
+function HomePage({ isLoading, message, onLogout, onRefreshUser, token, user }: HomePageProps) {
+  const isAdministrator = user.roles.includes('Administrador')
+
   return (
     <main className="home-shell">
       <header className="topbar">
@@ -417,8 +425,169 @@ function HomePage({ isLoading, message, onLogout, onRefreshUser, user }: HomePag
         </article>
       </section>
 
+      {isAdministrator && <AdminRoleManagement currentUserId={user.id} token={token} />}
+
       {message && <p className="home-feedback">{message}</p>}
     </main>
+  )
+}
+
+type AdminRoleManagementProps = {
+  currentUserId: number
+  token: string
+}
+
+function AdminRoleManagement({ currentUserId, token }: AdminRoleManagementProps) {
+  const [availableRoles, setAvailableRoles] = useState<string[]>([])
+  const [users, setUsers] = useState<UserDto[]>([])
+  const [draftRoles, setDraftRoles] = useState<Record<number, string[]>>({})
+  const [isLoading, setIsLoading] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    void loadRoleManagement()
+  }, [])
+
+  async function loadRoleManagement() {
+    setIsLoading(true)
+    setError('')
+    setMessage('')
+
+    try {
+      const [rolesResponse, usersResponse] = await Promise.all([
+        fetch('/api/admin/roles', {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch('/api/admin/users', {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ])
+
+      if (!rolesResponse.ok || !usersResponse.ok) {
+        setError('Nao foi possivel carregar a gestao de utilizadores.')
+        return
+      }
+
+      const roles = (await rolesResponse.json()) as string[]
+      const loadedUsers = (await usersResponse.json()) as UserDto[]
+
+      setAvailableRoles(roles)
+      setUsers(loadedUsers)
+      setDraftRoles(
+        Object.fromEntries(
+          loadedUsers.map((loadedUser) => [loadedUser.id, loadedUser.roles ?? []]),
+        ),
+      )
+    } catch {
+      setError('Nao foi possivel contactar a API de administracao.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  function toggleRole(userId: number, role: string) {
+    setDraftRoles((current) => {
+      const roles = current[userId] ?? []
+      const nextRoles = roles.includes(role)
+        ? roles.filter((item) => item !== role)
+        : [...roles, role]
+
+      return {
+        ...current,
+        [userId]: nextRoles,
+      }
+    })
+  }
+
+  async function saveUserRoles(targetUser: UserDto) {
+    setIsLoading(true)
+    setError('')
+    setMessage('')
+
+    try {
+      const response = await fetch(`/api/admin/users/${targetUser.id}/roles`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ roles: draftRoles[targetUser.id] ?? [] }),
+      })
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as ApiMessage
+        setError(data.message || 'Nao foi possivel atualizar as roles.')
+        return
+      }
+
+      const updatedUser = (await response.json()) as UserDto
+      setUsers((current) =>
+        current.map((item) => (item.id === updatedUser.id ? updatedUser : item)),
+      )
+      setDraftRoles((current) => ({
+        ...current,
+        [updatedUser.id]: updatedUser.roles,
+      }))
+      setMessage(`Roles atualizadas para ${updatedUser.userName}.`)
+    } catch {
+      setError('Nao foi possivel contactar a API de administracao.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <section className="admin-section" aria-labelledby="admin-title">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Administracao</p>
+          <h2 id="admin-title">Gestao de utilizadores</h2>
+        </div>
+        <button type="button" onClick={loadRoleManagement} disabled={isLoading}>
+          Atualizar
+        </button>
+      </div>
+
+      <div className="users-table">
+        <div className="users-row users-row-head">
+          <span>Utilizador</span>
+          <span>Email</span>
+          <span>Roles</span>
+          <span>Acao</span>
+        </div>
+
+        {users.map((managedUser) => (
+          <div className="users-row" key={managedUser.id}>
+            <span>
+              {managedUser.fullName || managedUser.userName}
+              {managedUser.id === currentUserId && <small>Conta atual</small>}
+            </span>
+            <span>{managedUser.email}</span>
+            <span className="role-options">
+              {availableRoles.map((role) => (
+                <label className="role-check" key={role}>
+                  <input
+                    checked={(draftRoles[managedUser.id] ?? []).includes(role)}
+                    type="checkbox"
+                    onChange={() => toggleRole(managedUser.id, role)}
+                  />
+                  {role}
+                </label>
+              ))}
+            </span>
+            <span>
+              <button type="button" onClick={() => saveUserRoles(managedUser)} disabled={isLoading}>
+                Guardar
+              </button>
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {message && <p className="home-feedback">{message}</p>}
+      {error && <p className="feedback error">{error}</p>}
+    </section>
   )
 }
 

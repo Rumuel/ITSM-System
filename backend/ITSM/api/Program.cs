@@ -85,7 +85,7 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
-await SeedIdentityRolesAsync(app.Services);
+await SeedIdentityAsync(app.Services, app.Configuration);
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -107,10 +107,11 @@ app.MapControllers();
 
 app.Run();
 
-static async Task SeedIdentityRolesAsync(IServiceProvider services)
+static async Task SeedIdentityAsync(IServiceProvider services, IConfiguration configuration)
 {
     using var scope = services.CreateScope();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<int>>>();
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
     foreach (var roleName in AppRoles.All)
     {
@@ -120,5 +121,46 @@ static async Task SeedIdentityRolesAsync(IServiceProvider services)
         }
 
         await roleManager.CreateAsync(new IdentityRole<int>(roleName));
+    }
+
+    var seedAdminEnabled = configuration.GetValue("SeedAdmin:Enabled", false);
+    if (!seedAdminEnabled)
+    {
+        return;
+    }
+
+    var userName = configuration["SeedAdmin:UserName"];
+    var email = configuration["SeedAdmin:Email"];
+    var password = configuration["SeedAdmin:Password"];
+    var name = configuration["SeedAdmin:Name"] ?? "Administrador";
+
+    if (string.IsNullOrWhiteSpace(userName)
+        || string.IsNullOrWhiteSpace(email)
+        || string.IsNullOrWhiteSpace(password))
+    {
+        return;
+    }
+
+    var admin = await userManager.FindByNameAsync(userName);
+    if (admin == null)
+    {
+        admin = new ApplicationUser
+        {
+            UserName = userName,
+            Email = email,
+            Name = name,
+            IsActive = true
+        };
+
+        var createResult = await userManager.CreateAsync(admin, password);
+        if (!createResult.Succeeded)
+        {
+            return;
+        }
+    }
+
+    if (!await userManager.IsInRoleAsync(admin, AppRoles.Administrator))
+    {
+        await userManager.AddToRoleAsync(admin, AppRoles.Administrator);
     }
 }
