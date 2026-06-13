@@ -28,7 +28,11 @@ namespace Application.Services
 
         public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
         {
-            var existingUser = await _userManager.FindByNameAsync(request.UserName);
+            var userName = request.UserName.Trim();
+            var email = request.Email.Trim();
+            var name = request.FullName.Trim();
+
+            var existingUser = await _userManager.FindByNameAsync(userName);
             if (existingUser != null)
             {
                 return new AuthResponse
@@ -38,7 +42,7 @@ namespace Application.Services
                 };
             }
 
-            var existingEmail = await _userManager.FindByEmailAsync(request.Email);
+            var existingEmail = await _userManager.FindByEmailAsync(email);
             if (existingEmail != null)
             {
                 return new AuthResponse
@@ -50,9 +54,9 @@ namespace Application.Services
 
             var user = new ApplicationUser
             {
-                UserName = request.UserName,
-                Email = request.Email,
-                Name = request.FullName,
+                UserName = userName,
+                Email = email,
+                Name = name,
                 IsActive = true
             };
 
@@ -70,25 +74,28 @@ namespace Application.Services
             {
                 Success = true,
                 Message = "Registration successful",
-                User = new UserDto
-                {
-                    Id = user.Id,
-                    UserName = user.UserName ?? string.Empty,
-                    Email = user.Email ?? string.Empty,
-                    FullName = user.Name
-                }
+                User = MapToDto(user)
             };
         }
 
         public async Task<AuthResponse> LoginAsync(LoginRequest request)
         {
-            var user = await _userManager.FindByNameAsync(request.UserName);
+            var user = await _userManager.FindByNameAsync(request.UserName.Trim());
             if (user == null)
             {
                 return new AuthResponse
                 {
                     Success = false,
                     Message = "Invalid username or password"
+                };
+            }
+
+            if (!user.IsActive)
+            {
+                return new AuthResponse
+                {
+                    Success = false,
+                    Message = "User account is inactive"
                 };
             }
 
@@ -108,14 +115,14 @@ namespace Application.Services
                 Success = true,
                 Message = "Login successful",
                 Token = token,
-                User = new UserDto
-                {
-                    Id = user.Id,
-                    UserName = user.UserName ?? string.Empty,
-                    Email = user.Email ?? string.Empty,
-                    FullName = user.Name
-                }
+                User = MapToDto(user)
             };
+        }
+
+        public async Task<UserDto?> GetCurrentUserAsync(int userId)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            return user == null ? null : MapToDto(user);
         }
 
         private string GenerateJwtToken(ApplicationUser user)
@@ -139,6 +146,18 @@ namespace Application.Services
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        private static UserDto MapToDto(ApplicationUser user)
+        {
+            return new UserDto
+            {
+                Id = user.Id,
+                UserName = user.UserName ?? string.Empty,
+                Email = user.Email ?? string.Empty,
+                FullName = user.Name,
+                IsActive = user.IsActive
+            };
         }
     }
 }

@@ -15,3 +15,4 @@ C:\Users\User\source\repos\ITSM-System\backend\ITSM\Application\obj\Debug\net10.
 C:\Users\User\source\repos\ITSM-System\backend\ITSM\Application\obj\Debug\net10.0\ref\Application.dll
 C:\Users\User\source\repos\ITSM-System\backend\ITSM\Application\bin\Debug\net10.0\Infrastructure.dll
 C:\Users\User\source\repos\ITSM-System\backend\ITSM\Application\bin\Debug\net10.0\Infrastructure.pdb
+C:\Users\User\source\repos\ITSM-System\backend\ITSM\Application\obj\Debug\net10.0\Application.sourcelink.json
