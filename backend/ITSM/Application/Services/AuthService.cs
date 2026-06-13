@@ -1,5 +1,6 @@
 using Application.DTOs;
 using Application.Interfaces;
+using Domain.Constants;
 using Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
@@ -70,11 +71,13 @@ namespace Application.Services
                 };
             }
 
+            await _userManager.AddToRoleAsync(user, AppRoles.User);
+
             return new AuthResponse
             {
                 Success = true,
                 Message = "Registration successful",
-                User = MapToDto(user)
+                User = await MapToDtoAsync(user)
             };
         }
 
@@ -109,33 +112,36 @@ namespace Application.Services
                 };
             }
 
-            var token = GenerateJwtToken(user);
+            var roles = await _userManager.GetRolesAsync(user);
+            var token = GenerateJwtToken(user, roles);
             return new AuthResponse
             {
                 Success = true,
                 Message = "Login successful",
                 Token = token,
-                User = MapToDto(user)
+                User = MapToDto(user, roles)
             };
         }
 
         public async Task<UserDto?> GetCurrentUserAsync(int userId)
         {
             var user = await _userManager.FindByIdAsync(userId.ToString());
-            return user == null ? null : MapToDto(user);
+            return user == null ? null : await MapToDtoAsync(user);
         }
 
-        private string GenerateJwtToken(ApplicationUser user)
+        private string GenerateJwtToken(ApplicationUser user, IEnumerable<string> roles)
         {
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? string.Empty));
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-            var claims = new[]
+            var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(ClaimTypes.Name, user.UserName ?? string.Empty),
                 new Claim(ClaimTypes.Email, user.Email ?? string.Empty)
             };
+
+            claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
             var token = new JwtSecurityToken(
                 issuer: _configuration["Jwt:Issuer"],
@@ -148,7 +154,13 @@ namespace Application.Services
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        private static UserDto MapToDto(ApplicationUser user)
+        private async Task<UserDto> MapToDtoAsync(ApplicationUser user)
+        {
+            var roles = await _userManager.GetRolesAsync(user);
+            return MapToDto(user, roles);
+        }
+
+        private static UserDto MapToDto(ApplicationUser user, IEnumerable<string> roles)
         {
             return new UserDto
             {
@@ -156,7 +168,8 @@ namespace Application.Services
                 UserName = user.UserName ?? string.Empty,
                 Email = user.Email ?? string.Empty,
                 FullName = user.Name,
-                IsActive = user.IsActive
+                IsActive = user.IsActive,
+                Roles = roles.ToArray()
             };
         }
     }

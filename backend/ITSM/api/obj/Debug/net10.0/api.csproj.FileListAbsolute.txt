@@ -168,4 +168,3 @@ C:\Users\User\source\repos\ITSM-System\backend\ITSM\api\obj\Debug\net10.0\api.pd
 C:\Users\User\source\repos\ITSM-System\backend\ITSM\api\obj\Debug\net10.0\api.genruntimeconfig.cache
 C:\Users\User\source\repos\ITSM-System\backend\ITSM\api\obj\Debug\net10.0\ref\api.dll
 C:\Users\User\source\repos\ITSM-System\backend\ITSM\api\obj\Debug\net10.0\api.sourcelink.json
-C:\Users\User\source\repos\ITSM-System\backend\ITSM\api\obj\Debug\net10.0\staticwebassets.upToDateCheck.txt

@@ -1,4 +1,5 @@
 using Infrastructure.Data;
+using Domain.Constants;
 using Domain.Entities;
 using Application.Interfaces;
 using Application.Services;
@@ -84,6 +85,8 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+await SeedIdentityRolesAsync(app.Services);
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -103,3 +106,19 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+static async Task SeedIdentityRolesAsync(IServiceProvider services)
+{
+    using var scope = services.CreateScope();
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<int>>>();
+
+    foreach (var roleName in AppRoles.All)
+    {
+        if (await roleManager.RoleExistsAsync(roleName))
+        {
+            continue;
+        }
+
+        await roleManager.CreateAsync(new IdentityRole<int>(roleName));
+    }
+}

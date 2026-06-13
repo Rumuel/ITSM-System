@@ -10,6 +10,7 @@ type UserDto = {
   email: string
   fullName?: string
   isActive: boolean
+  roles: string[]
 }
 
 type AuthResponse = {
@@ -305,6 +306,10 @@ function App() {
             <div>
               <dt>Ativo</dt>
               <dd>{user.isActive ? 'Sim' : 'Nao'}</dd>
+            </div>
+            <div>
+              <dt>Roles</dt>
+              <dd>{user.roles.length > 0 ? user.roles.join(', ') : 'Sem role'}</dd>
             </div>
           </dl>
         )}
