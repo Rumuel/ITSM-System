@@ -2,7 +2,9 @@ using Application.DTOs;
 using Application.Interfaces;
 using Domain.Constants;
 using Domain.Entities;
+using Infrastructure.Data;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -16,15 +18,18 @@ namespace Application.Services
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IConfiguration _configuration;
+        private readonly ItsmDbContext _context;
 
         public AuthService(
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            ItsmDbContext context)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _configuration = configuration;
+            _context = context;
         }
 
         public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
@@ -119,7 +124,7 @@ namespace Application.Services
                 Success = true,
                 Message = "Login successful",
                 Token = token,
-                User = MapToDto(user, roles)
+                User = await MapToDtoAsync(user, roles)
             };
         }
 
@@ -157,17 +162,23 @@ namespace Application.Services
         private async Task<UserDto> MapToDtoAsync(ApplicationUser user)
         {
             var roles = await _userManager.GetRolesAsync(user);
-            return MapToDto(user, roles);
+            return await MapToDtoAsync(user, roles);
         }
 
-        private static UserDto MapToDto(ApplicationUser user, IEnumerable<string> roles)
+        private async Task<UserDto> MapToDtoAsync(ApplicationUser user, IEnumerable<string> roles)
         {
+            var technicianId = await _context.Technicians
+                .Where(technician => technician.UserId == user.Id)
+                .Select(technician => (int?)technician.Id)
+                .FirstOrDefaultAsync();
+
             return new UserDto
             {
                 Id = user.Id,
                 UserName = user.UserName ?? string.Empty,
                 Email = user.Email ?? string.Empty,
                 FullName = user.Name,
+                TechnicianId = technicianId,
                 IsActive = user.IsActive,
                 Roles = roles.ToArray()
             };

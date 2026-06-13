@@ -1,6 +1,7 @@
 using Application.DTOs;
 using Domain.Constants;
 using Domain.Entities;
+using Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -14,10 +15,12 @@ namespace api.Controllers
     public class AdminController : ControllerBase
     {
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly ItsmDbContext _context;
 
-        public AdminController(UserManager<ApplicationUser> userManager)
+        public AdminController(UserManager<ApplicationUser> userManager, ItsmDbContext context)
         {
             _userManager = userManager;
+            _context = context;
         }
 
         [HttpGet("roles")]
@@ -119,12 +122,18 @@ namespace api.Controllers
         private async Task<UserDto> MapToDtoAsync(ApplicationUser user)
         {
             var roles = await _userManager.GetRolesAsync(user);
+            var technicianId = await _context.Technicians
+                .Where(technician => technician.UserId == user.Id)
+                .Select(technician => (int?)technician.Id)
+                .FirstOrDefaultAsync();
+
             return new UserDto
             {
                 Id = user.Id,
                 UserName = user.UserName ?? string.Empty,
                 Email = user.Email ?? string.Empty,
                 FullName = user.Name,
+                TechnicianId = technicianId,
                 IsActive = user.IsActive,
                 Roles = roles.ToArray()
             };

@@ -14,6 +14,7 @@ namespace Application.DTOs
         public string UserName { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string? FullName { get; set; }
+        public int? TechnicianId { get; set; }
         public bool IsActive { get; set; }
         public IReadOnlyCollection<string> Roles { get; set; } = Array.Empty<string>();
     }

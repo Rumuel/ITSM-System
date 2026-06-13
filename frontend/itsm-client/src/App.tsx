@@ -9,6 +9,7 @@ type UserDto = {
   userName: string
   email: string
   fullName?: string
+  technicianId?: number
   isActive: boolean
   roles: string[]
 }
@@ -58,6 +59,11 @@ type CreateTicketForm = {
   description: string
   priority: number
   categoryId: string
+}
+
+type TicketSummary = {
+  open: number
+  assigned: number
 }
 
 type LoginForm = {
@@ -408,6 +414,24 @@ type HomePageProps = {
 
 function HomePage({ isLoading, message, onLogout, onRefreshUser, token, user }: HomePageProps) {
   const isAdministrator = user.roles.includes('Administrador')
+  const [ticketSummary, setTicketSummary] = useState<TicketSummary>({ open: 0, assigned: 0 })
+
+  function updateTicketSummary(tickets: TicketDto[]) {
+    const currentUserName = user.fullName || user.userName
+    const openTickets = tickets.filter((ticket) => ticket.status !== 3 && ticket.status !== 4)
+    const assignedTickets = tickets.filter((ticket) => {
+      if (user.technicianId) {
+        return ticket.assigneeId === user.technicianId
+      }
+
+      return ticket.assigneeName === currentUserName
+    })
+
+    setTicketSummary({
+      open: openTickets.length,
+      assigned: assignedTickets.length,
+    })
+  }
 
   return (
     <main className="home-shell">
@@ -452,14 +476,14 @@ function HomePage({ isLoading, message, onLogout, onRefreshUser, token, user }: 
 
       <section className="home-grid" aria-label="Resumo operacional">
         <article>
-          <span className="metric">0</span>
+          <span className="metric">{ticketSummary.open}</span>
           <h3>Tickets abertos</h3>
-          <p>A fase de tickets entra no proximo passo do projeto.</p>
+          <p>Tickets ainda em atendimento no sistema.</p>
         </article>
         <article>
-          <span className="metric">0</span>
+          <span className="metric">{ticketSummary.assigned}</span>
           <h3>Tickets atribuidos</h3>
-          <p>Quando houver tecnicos, esta area mostra o trabalho em curso.</p>
+          <p>Tickets atribuidos ao tecnico autenticado.</p>
         </article>
         <article>
           <span className="metric">{user.roles.length}</span>
@@ -468,7 +492,7 @@ function HomePage({ isLoading, message, onLogout, onRefreshUser, token, user }: 
         </article>
       </section>
 
-      <TicketManagement token={token} user={user} />
+      <TicketManagement onTicketsChanged={updateTicketSummary} token={token} user={user} />
 
       {isAdministrator && <AdminRoleManagement currentUserId={user.id} token={token} />}
 
@@ -478,11 +502,12 @@ function HomePage({ isLoading, message, onLogout, onRefreshUser, token, user }: 
 }
 
 type TicketManagementProps = {
+  onTicketsChanged: (tickets: TicketDto[]) => void
   token: string
   user: UserDto
 }
 
-function TicketManagement({ token, user }: TicketManagementProps) {
+function TicketManagement({ onTicketsChanged, token, user }: TicketManagementProps) {
   const [tickets, setTickets] = useState<TicketDto[]>([])
   const [categories, setCategories] = useState<TicketCategoryDto[]>([])
   const [priorities, setPriorities] = useState<TicketLookupDto[]>([])
@@ -517,7 +542,9 @@ function TicketManagement({ token, user }: TicketManagementProps) {
         return
       }
 
-      setTickets((await ticketsResponse.json()) as TicketDto[])
+      const loadedTickets = (await ticketsResponse.json()) as TicketDto[]
+      setTickets(loadedTickets)
+      onTicketsChanged(loadedTickets)
       setCategories((await categoriesResponse.json()) as TicketCategoryDto[])
       setPriorities((await prioritiesResponse.json()) as TicketLookupDto[])
       setStatuses((await statusesResponse.json()) as TicketLookupDto[])
@@ -555,7 +582,11 @@ function TicketManagement({ token, user }: TicketManagementProps) {
       }
 
       const createdTicket = (await response.json()) as TicketDto
-      setTickets((current) => [createdTicket, ...current])
+      setTickets((current) => {
+        const nextTickets = [createdTicket, ...current]
+        onTicketsChanged(nextTickets)
+        return nextTickets
+      })
       setForm(initialTicketForm)
       setMessage(`Ticket #${createdTicket.id} criado.`)
     } catch {
@@ -592,9 +623,11 @@ function TicketManagement({ token, user }: TicketManagementProps) {
       }
 
       const updatedTicket = (await response.json()) as TicketDto
-      setTickets((current) =>
-        current.map((item) => (item.id === updatedTicket.id ? updatedTicket : item)),
-      )
+      setTickets((current) => {
+        const nextTickets = current.map((item) => (item.id === updatedTicket.id ? updatedTicket : item))
+        onTicketsChanged(nextTickets)
+        return nextTickets
+      })
       setMessage(`Ticket #${updatedTicket.id} atualizado.`)
     } catch {
       setError('Nao foi possivel contactar a API de tickets.')
@@ -619,7 +652,11 @@ function TicketManagement({ token, user }: TicketManagementProps) {
         return
       }
 
-      setTickets((current) => current.filter((ticket) => ticket.id !== ticketId))
+      setTickets((current) => {
+        const nextTickets = current.filter((ticket) => ticket.id !== ticketId)
+        onTicketsChanged(nextTickets)
+        return nextTickets
+      })
       setMessage(`Ticket #${ticketId} removido.`)
     } catch {
       setError('Nao foi possivel contactar a API de tickets.')
