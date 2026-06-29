@@ -15,6 +15,4 @@ C:\Users\User\source\repos\ITSM-System\backend\ITSM\Tests\obj\Debug\net10.0\Test
 C:\Users\User\source\repos\ITSM-System\backend\ITSM\Tests\obj\Debug\net10.0\refint\Tests.dll
 C:\Users\User\source\repos\ITSM-System\backend\ITSM\Tests\obj\Debug\net10.0\Tests.pdb
 C:\Users\User\source\repos\ITSM-System\backend\ITSM\Tests\obj\Debug\net10.0\ref\Tests.dll
-C:\Users\User\source\repos\ITSM-System\backend\ITSM\Tests\bin\Debug\net10.0\Infrastructure.dll
-C:\Users\User\source\repos\ITSM-System\backend\ITSM\Tests\bin\Debug\net10.0\Infrastructure.pdb
 C:\Users\User\source\repos\ITSM-System\backend\ITSM\Tests\obj\Debug\net10.0\Tests.sourcelink.json

@@ -2,7 +2,6 @@ using Application.DTOs;
 using Application.Interfaces;
 using Domain.Constants;
 using Domain.Entities;
-using Infrastructure.Data;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -18,13 +17,13 @@ namespace Application.Services
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IConfiguration _configuration;
-        private readonly ItsmDbContext _context;
+        private readonly IApplicationDbContext _context;
 
         public AuthService(
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
             IConfiguration configuration,
-            ItsmDbContext context)
+            IApplicationDbContext context)
         {
             _userManager = userManager;
             _signInManager = signInManager;

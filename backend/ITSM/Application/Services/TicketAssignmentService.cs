@@ -1,120 +1,98 @@
+using Application.Events;
 using Application.Interfaces;
+using Application.Models;
 using Domain.Entities;
-using Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace Application.Services
 {
-    public class TicketAssignmentService : ITicketAssignmentService
+    public sealed class TicketAssignmentService : ITicketAssignmentService
     {
         private const int AvailabilityScore = 3;
-        private readonly ItsmDbContext _context;
+        private readonly IApplicationDbContext _context;
+        private readonly IOperationalDataCache _cache;
+        private readonly IOperationalDataLoader _loader;
+        private readonly IApplicationEventDispatcher _eventDispatcher;
 
-        public TicketAssignmentService(ItsmDbContext context)
+        public TicketAssignmentService(
+            IApplicationDbContext context,
+            IOperationalDataCache cache,
+            IOperationalDataLoader loader,
+            IApplicationEventDispatcher eventDispatcher)
         {
             _context = context;
+            _cache = cache;
+            _loader = loader;
+            _eventDispatcher = eventDispatcher;
         }
 
         public async Task<Technician?> AssignBestTechnicianAsync(Ticket ticket)
         {
             var ticketData = await _context.Tickets
-                .Include(t => t.Category)
-                .Include(t => t.Priority)
-                .FirstAsync(t => t.Id == ticket.Id);
+                .AsNoTracking()
+                .FirstAsync(item => item.Id == ticket.Id);
 
-            var technicians = await _context.Technicians
-                .Include(t => t.TechnicianSkills)
-                    .ThenInclude(ts => ts.Skill)
-                .Include(t => t.Availabilities)
-                .Where(t => t.IsAvailable)
-                .ToListAsync();
+            await _loader.RefreshAsync();
+            var snapshot = _cache.Current;
 
-            if (technicians.Count == 0)
-            {
-                return null;
-            }
-
-            var activeWorkloads = await _context.Tickets
-                .Where(t => t.AssignedTechnicianId != null && t.StatusId != 3 && t.StatusId != 4)
-                .GroupBy(t => t.AssignedTechnicianId!.Value)
-                .Select(group => new
-                {
-                    TechnicianId = group.Key,
-                    Count = group.Count()
-                })
-                .ToDictionaryAsync(item => item.TechnicianId, item => item.Count);
-
+            var requiredSkill = ticketData.CategoryId.HasValue
+                ? snapshot.Categories.GetValueOrDefault(ticketData.CategoryId.Value)
+                : null;
+            var priorityWeight = snapshot.PriorityWeights.GetValueOrDefault(ticketData.PriorityId);
             var now = DateTime.Now;
-            var priorityWeight = ticketData.Priority?.Weight ?? 0;
-            var requiredSkill = ticketData.Category?.RequiredSkill;
 
-            var bestTechnician = technicians
-                .Select(technician =>
-                {
-                    activeWorkloads.TryGetValue(technician.Id, out var workload);
-                    return new
-                    {
-                        Technician = technician,
-                        Workload = workload,
-                        Score = CalculateScore(technician, requiredSkill, workload, priorityWeight, now)
-                    };
-                })
-                .Where(item => item.Workload < item.Technician.MaxActiveTickets)
-                .OrderByDescending(item => item.Score)
-                .ThenBy(item => item.Workload)
-                .ThenBy(item => item.Technician.Id)
-                .FirstOrDefault();
+            var candidates =
+                new PriorityQueue<TechnicianOperationalData, (int NegativeScore, int Workload, int TechnicianId)>();
 
-            if (bestTechnician == null)
+            foreach (var technician in snapshot.Technicians.Values.Where(item =>
+                         item.IsAvailable && item.ActiveTicketCount < item.MaxActiveTickets))
+            {
+                var score = CalculateScore(technician, requiredSkill, priorityWeight, now);
+                candidates.Enqueue(
+                    technician,
+                    (-score, technician.ActiveTicketCount, technician.TechnicianId));
+            }
+
+            if (!candidates.TryDequeue(out var bestTechnician, out var queuePriority))
             {
                 return null;
             }
 
-            ticket.AssignedTechnicianId = bestTechnician.Technician.Id;
+            ticket.AssignedTechnicianId = bestTechnician.TechnicianId;
             ticket.UpdatedAt = DateTime.UtcNow;
 
             _context.TicketHistories.Add(new TicketHistory
             {
                 TicketId = ticket.Id,
-                OldStatus = ticket.Status?.Name ?? "Novo",
-                NewStatus = ticket.Status?.Name ?? "Novo",
-                Comment = $"Ticket atribuido automaticamente ao tecnico {bestTechnician.Technician.User?.Name ?? bestTechnician.Technician.Id.ToString()} com pontuacao {bestTechnician.Score}.",
+                OldStatus = snapshot.Statuses.GetValueOrDefault(ticket.StatusId, "Novo"),
+                NewStatus = snapshot.Statuses.GetValueOrDefault(ticket.StatusId, "Novo"),
+                Comment = $"Ticket atribuido automaticamente ao tecnico {bestTechnician.DisplayName} " +
+                          $"com pontuacao {-queuePriority.NegativeScore}.",
                 ChangedAt = DateTime.UtcNow
             });
 
             await _context.SaveChangesAsync();
-            return bestTechnician.Technician;
+            await _eventDispatcher.PublishAsync(
+                new TicketAssignmentChangedEvent(ticket.Id, bestTechnician.TechnicianId));
+
+            return await _context.Technicians.FindAsync(bestTechnician.TechnicianId);
         }
 
         private static int CalculateScore(
-            Technician technician,
+            TechnicianOperationalData technician,
             string? requiredSkill,
-            int workload,
             int priorityWeight,
             DateTime now)
         {
-            var skillScore = GetSkillScore(technician, requiredSkill);
+            var skillScore = string.IsNullOrWhiteSpace(requiredSkill)
+                ? (technician.Skills.Count > 0 ? 1 : 0)
+                : technician.Skills.GetValueOrDefault(requiredSkill);
             var availabilityScore = IsAvailableNow(technician, now) ? AvailabilityScore : 0;
 
-            return skillScore - workload + availabilityScore + priorityWeight;
+            return skillScore - technician.ActiveTicketCount + availabilityScore + priorityWeight;
         }
 
-        private static int GetSkillScore(Technician technician, string? requiredSkill)
-        {
-            if (string.IsNullOrWhiteSpace(requiredSkill))
-            {
-                return technician.TechnicianSkills.Any() ? 1 : 0;
-            }
-
-            var matchingSkill = technician.TechnicianSkills
-                .Where(ts => ts.Skill != null && ts.Skill.Name.Equals(requiredSkill, StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(ts => ts.Level)
-                .FirstOrDefault();
-
-            return matchingSkill?.Level ?? 0;
-        }
-
-        private static bool IsAvailableNow(Technician technician, DateTime now)
+        private static bool IsAvailableNow(TechnicianOperationalData technician, DateTime now)
         {
             if (technician.Availabilities.Count == 0)
             {

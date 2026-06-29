@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using Application.Events;
+using api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +18,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 builder.Services.AddDbContext<ItsmDbContext>(options =>
     options.UseSqlServer(connectionString));
+builder.Services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ItsmDbContext>());
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole<int>>(options =>
 {
@@ -55,6 +58,12 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITicketAssignmentService, TicketAssignmentService>();
 builder.Services.AddScoped<ITicketService, TicketService>();
 builder.Services.AddScoped<ITicketCategoryService, TicketCategoryService>();
+builder.Services.AddSingleton<IOperationalDataCache, OperationalDataCache>();
+builder.Services.AddScoped<IOperationalDataLoader, OperationalDataLoader>();
+builder.Services.AddScoped<IApplicationEventDispatcher, ApplicationEventDispatcher>();
+builder.Services.AddScoped<IApplicationEventHandler<TicketCreatedEvent>, OperationalDataRefreshEventHandler>();
+builder.Services.AddScoped<IApplicationEventHandler<TicketAssignmentChangedEvent>, OperationalDataRefreshEventHandler>();
+builder.Services.AddHostedService<OperationalDataWarmupService>();
 
 builder.Services.AddControllers();
 

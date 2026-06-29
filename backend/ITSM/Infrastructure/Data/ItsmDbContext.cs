@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Infrastructure.Data
 {
-    public class ItsmDbContext : IdentityDbContext<ApplicationUser, IdentityRole<int>, int>
+    public class ItsmDbContext : IdentityDbContext<ApplicationUser, IdentityRole<int>, int>, Application.Interfaces.IApplicationDbContext
     {
         public ItsmDbContext(DbContextOptions<ItsmDbContext> options)
             : base(options)

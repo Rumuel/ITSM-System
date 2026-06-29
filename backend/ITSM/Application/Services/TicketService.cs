@@ -1,17 +1,16 @@
 using Application.DTOs;
 using Application.Interfaces;
 using Domain.Entities;
-using Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace Application.Services
 {
     public class TicketService : ITicketService
     {
-        private readonly ItsmDbContext _context;
+        private readonly IApplicationDbContext _context;
         private readonly ITicketAssignmentService _assignmentService;
 
-        public TicketService(ItsmDbContext context, ITicketAssignmentService assignmentService)
+        public TicketService(IApplicationDbContext context, ITicketAssignmentService assignmentService)
         {
             _context = context;
             _assignmentService = assignmentService;
